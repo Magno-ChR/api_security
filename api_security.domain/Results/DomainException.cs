@@ -1,0 +1,14 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace api_security.domain.Results
+{
+    public class DomainException(Error Error) : Exception
+    {
+        public Error Error { get; } = Error;
+    }
+}
