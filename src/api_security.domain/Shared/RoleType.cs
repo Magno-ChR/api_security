@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace api_security.domain.Shared;
 
-public enum Roles
+public enum RoleType
 {
     patient,
     doctor,
