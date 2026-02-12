@@ -1,5 +1,4 @@
-﻿using api_security.domain.Entities.Patients;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;

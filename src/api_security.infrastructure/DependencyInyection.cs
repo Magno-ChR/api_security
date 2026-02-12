@@ -5,9 +5,11 @@ using api_security.infrastructure.Percistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using patient.application;
 using api_security.domain.Abstractions;
 using api_security.domain.Entities.Users;
+using api_security.application;
+using api_security.application.Common.Security;
+using api_security.infrastructure.Security;
 
 namespace api_security.infrastructure
 {
@@ -31,6 +33,8 @@ namespace api_security.infrastructure
             services.AddScoped<IDatabase, PersistenceDbContext>();
 
             services.AddScoped<IUserRepository, UserRepository>();
+
+            services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
         }

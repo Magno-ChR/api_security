@@ -36,38 +36,38 @@ internal class UserRepository : IUserRepository
                 .FirstOrDefaultAsync(i => i.Id == id);
         }
     }
-    public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null)
-    {
-        var query = context.Patients.AsNoTracking();
+    //public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null)
+    //{
+    //    var query = context.Users.AsNoTracking();
 
-        // Optional search
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(p =>
-                p.FirstName.Contains(search) ||
-                p.LastName.Contains(search) ||
-                p.DocumentNumber.Contains(search)
-            );
-        }
+    //    // Optional search
+    //    if (!string.IsNullOrWhiteSpace(search))
+    //    {
+    //        query = query.Where(p =>
+    //            p.FirstName.Contains(search) ||
+    //            p.LastName.Contains(search) ||
+    //            p.DocumentNumber.Contains(search)
+    //        );
+    //    }
 
-        // Count total
-        var totalItems = await query.CountAsync();
+    //    // Count total
+    //    var totalItems = await query.CountAsync();
 
-        // Pagination
-        var items = await query
-            .OrderBy(p => p.FirstName)
-            .ThenBy(p => p.LastName)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+    //    // Pagination
+    //    var items = await query
+    //        .OrderBy(p => p.FirstName)
+    //        .ThenBy(p => p.LastName)
+    //        .Skip((page - 1) * pageSize)
+    //        .Take(pageSize)
+    //        .ToListAsync();
 
-        return new PagedResult<User>
-        {
-            Page = page,
-            PageSize = pageSize,
-            TotalItems = totalItems,
-            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize),
-            Items = items
-        };
-    }
+    //    return new PagedResult<User>
+    //    {
+    //        Page = page,
+    //        PageSize = pageSize,
+    //        TotalItems = totalItems,
+    //        TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize),
+    //        Items = items
+    //    };
+    //}
 }
