@@ -5,7 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace api_security.domain.Entities.Histories.Events
+namespace api_security.domain.Entities.Users;
+
+public  interface IUserRepository : IRepository<User>
 {
-    public record BackgroundCreateEvent(Guid BackgroundId) : DomainEvent;
+    
 }

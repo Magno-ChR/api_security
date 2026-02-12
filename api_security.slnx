@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/api_security.application/api_security.application.csproj" Id="cfaebcbc-a158-4296-a97f-d51cbfda6d45" />
     <Project Path="src/api_security.domain/api_security.domain.csproj" />
+    <Project Path="src/api_security.infrastructure/api_security.infrastructure.csproj" Id="33d6be48-7160-4f01-b4ae-6bcf0c33a1db" />
     <Project Path="src/api_security/api_security.csproj" />
   </Folder>
 </Solution>

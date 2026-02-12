@@ -82,4 +82,6 @@ public class User : AggregateRoot
         IsActive = false;
         UpdateDate = DateTime.Now;
     }
+
+    private User() : base() { }
 }
