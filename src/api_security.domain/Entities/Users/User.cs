@@ -30,8 +30,8 @@ public class User : AggregateRoot
         PatientId = patientId;
         Username = username;
         IsActive = true;
-        CreationDate = DateTime.Now;
-        UpdateDate = DateTime.Now;
+        CreationDate = DateTime.UtcNow;
+        UpdateDate = DateTime.UtcNow;
         FailedLoginAttempts = 0;
     }
 
@@ -49,7 +49,7 @@ public class User : AggregateRoot
         if (credential == null)
             throw new ArgumentNullException(nameof(credential), "La credencial no puede ser nula");
         _credentials.Add(credential);
-        UpdateDate = DateTime.Now;
+        UpdateDate = DateTime.UtcNow;
     }
 
     public void AddUserRole(UserRole userRole)
@@ -57,30 +57,30 @@ public class User : AggregateRoot
         if (userRole == null)
             throw new ArgumentNullException(nameof(userRole), "El rol de usuario no puede ser nulo");
         _userRoles.Add(userRole);
-        UpdateDate = DateTime.Now;
+        UpdateDate = DateTime.UtcNow;
     }
     public void UpdateLastLoginDate()
     {
-        LastLoginDate = DateTime.Now;
-        UpdateDate = DateTime.Now;
+        LastLoginDate = DateTime.UtcNow;
+        UpdateDate = DateTime.UtcNow;
     }
 
     public void IncrementFailedLoginAttempts()
     {
         FailedLoginAttempts++;
-        UpdateDate = DateTime.Now;
+        UpdateDate = DateTime.UtcNow;
     }
 
     public void Activate()
     {
         IsActive = true;
-        UpdateDate = DateTime.Now;
+        UpdateDate = DateTime.UtcNow;
     }
 
     public void Deactivate()
     {
         IsActive = false;
-        UpdateDate = DateTime.Now;
+        UpdateDate = DateTime.UtcNow;
     }
 
     private User() : base() { }

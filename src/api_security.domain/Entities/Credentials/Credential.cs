@@ -21,12 +21,13 @@ public class Credential : Entity
             throw new ArgumentException("El hash de la contraseña no puede estar vacío", nameof(passwordHash));
         if (string.IsNullOrWhiteSpace(passwordSalt))
             throw new ArgumentException("La sal de la contraseña no puede estar vacía", nameof(passwordSalt));
-        if (expirationDate <= DateTime.Now)
+        if (expirationDate <= DateTime.UtcNow)
             throw new ArgumentException("La fecha de expiración debe ser futura", nameof(expirationDate));
         UserId = userId;
+        IsActive = true;
         PasswordHash = passwordHash;
         PasswordSalt = passwordSalt;
-        CreationDate = DateTime.Now;
+        CreationDate = DateTime.UtcNow;
         ExpirationDate = expirationDate;
     }
 
@@ -38,7 +39,7 @@ public class Credential : Entity
             throw new ArgumentException("El hash de la contraseña no puede estar vacío", nameof(passwordHash));
         if (string.IsNullOrWhiteSpace(passwordSalt))
             throw new ArgumentException("La sal de la contraseña no puede estar vacía", nameof(passwordSalt));
-        if (expirationDate <= DateTime.Now)
+        if (expirationDate <= DateTime.UtcNow)
             throw new ArgumentException("La fecha de expiración debe ser futura", nameof(expirationDate));
 
         return new Credential(id, userId, passwordHash, passwordSalt, expirationDate);

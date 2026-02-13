@@ -19,6 +19,11 @@ namespace api_security.infrastructure
         {
             services.AddApplication()
                 .AddPersistence(configuration);
+
+            services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
+
+            services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
             return services;
         }
 

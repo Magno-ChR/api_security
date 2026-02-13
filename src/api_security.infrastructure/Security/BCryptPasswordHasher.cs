@@ -11,4 +11,9 @@ public class BCryptPasswordHasher : IPasswordHasher
         var hash = BCrypt.Net.BCrypt.HashPassword(password, salt);
         return (hash, salt);
     }
+
+    public string RecalculateHash(string password, string salt)
+    {
+        return BCrypt.Net.BCrypt.HashPassword(password, salt);
+    }
 }

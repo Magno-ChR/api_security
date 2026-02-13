@@ -30,7 +30,7 @@ public class CreateUserHandler : IRequestHandler<CreateUserCommand, Result<Guid>
 
         var (hash, salt) = _passwordHasher.HashPassword(request.Password);
 
-        user.AddCredential(new Credential(Guid.NewGuid(), user.Id, hash, salt, DateTime.Now.AddYears(1)));
+        user.AddCredential(new Credential(Guid.NewGuid(), user.Id, hash, salt, DateTime.UtcNow.AddYears(1)));
         user.AddUserRole(new UserRole(Guid.NewGuid(), user.Id, request.RoleType));
 
         await _userRepository.AddAsync(user);

@@ -19,7 +19,7 @@ internal class UserRolePM
     [Required]
     public Guid UserId { get; set; }
 
-    [Column("RoleId")]
+    [Column("Role")]
     [Required]
     public string Role { get; set; } = string.Empty;
 

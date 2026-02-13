@@ -21,7 +21,7 @@ public class UserRole : Entity
         UserId = userId;
         Role = role;
         IsActive = true;
-        CreationDate = DateTime.Now;
+        CreationDate = DateTime.UtcNow;
     }
 
     public void ChangeRole(RoleType newRole)

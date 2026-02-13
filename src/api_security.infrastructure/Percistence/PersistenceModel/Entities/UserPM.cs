@@ -15,6 +15,10 @@ internal class UserPM
     [Column("UserId")]
     public Guid Id { get; set; }
 
+    [Column("PatientId")]
+    [Required]
+    public Guid PatientId { get; set; }
+
     [Column("Username")]
     [StringLength(100)]
     [Required]

@@ -36,6 +36,25 @@ internal class UserRepository : IUserRepository
                 .FirstOrDefaultAsync(i => i.Id == id);
         }
     }
+
+    public async Task<User?> GetByUsernameAsync(string username, bool readOnly = false)
+    {
+        if (readOnly)
+        {
+            return await context.Users
+                .AsNoTracking()
+                .Include("_credentials")
+                .Include("_userRoles")
+                .FirstOrDefaultAsync(u => u.Username == username);
+        }
+        else
+        {
+            return await context.Users
+                .Include("_credentials")
+                .Include("_userRoles")
+                .FirstOrDefaultAsync(u => u.Username == username);
+        }
+    }
     //public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null)
     //{
     //    var query = context.Users.AsNoTracking();
