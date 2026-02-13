@@ -13,62 +13,37 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Learn más sobre la configuración de OpenAPI en https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddOpenApi(o =>
+builder.Services.AddOpenApi(options =>
 {
-    o.AddDocumentTransformer((document, _, _) =>
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
+        document.Info = new()
+        {
+            Title = "Security API",
+            Version = "v1",
+            Description = "API for authentication and authorization"
+        };
+
         document.Components ??= new OpenApiComponents();
 
-        document.Components.SecuritySchemes.Add(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
+        var securitySchemes = new Dictionary<string, IOpenApiSecurityScheme>
         {
-            Type = SecuritySchemeType.OAuth2,
-            Flows = new OpenApiOAuthFlows
+            ["Bearer"] = new OpenApiSecurityScheme
             {
-                AuthorizationCode = new OpenApiOAuthFlow
-                {
-                    AuthorizationUrl = new Uri("<your-app-auth-endpoint>"),
-                    TokenUrl = new Uri("<your-app-token-endpoint>"),
-                    Scopes = new Dictionary<string, string>
-                    {
-                        {"api://<client-id>/data.read", "Read Data"}
-                    },
-                    // To allow Scalar to select PKCE by Default
-                    // valid options are 'SHA-256' | 'plain' | 'no'
-                    Extensions = new Dictionary<string, IOpenApiExtension>()
-                    {
-                        ["x-usePkce"] = new OpenApiString("SHA-256")
-                        // Prefill Client Secret using extension below: 
-                        // Don't hardcode this value. Instead fetch it from a secure configuration source (local user secrets, Key Vault, etc.)
-                        // ["clientSecret"] = new OpenApiString("<your-secret>")
-                    }
-
-                }
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer", // "bearer" refers to the header name here
+                In = ParameterLocation.Header,
+                BearerFormat = "Json Web Token"
             }
-        });
+        };
 
-        // Provide a security requirement for all operations (preselected default security scheme)
-        document.SecurityRequirements.Add(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = JwtBearerDefaults.AuthenticationScheme
-                    }
-                },
-                // scopes
-                ["api://<client-id>/data.read"]
-            }
-        });
+        document.Components.SecuritySchemes = securitySchemes;
 
         return Task.CompletedTask;
-
     });
 });
 
-builder.Services.AddJwtAuth(builder.Configuration);
+
 
 var app = builder.Build();
 
@@ -76,7 +51,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(options =>
+    {
+        options.Title = "API Security";
+        options.Theme = ScalarTheme.Purple;
+    });
 }
 
 app.UseHttpsRedirection();

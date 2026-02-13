@@ -23,6 +23,7 @@ namespace api_security.infrastructure
             services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 
             services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+            services.AddJwtAuthentication(configuration);
 
             return services;
         }
