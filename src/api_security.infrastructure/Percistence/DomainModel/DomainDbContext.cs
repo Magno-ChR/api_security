@@ -1,5 +1,6 @@
 ﻿using api_security.domain.Abstractions;
 using api_security.domain.Entities.Credentials;
+using api_security.domain.Entities.Patients;
 using api_security.domain.Entities.UserRoles;
 using api_security.domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace api_security.infrastructure.Percistence.DomainModel
         public DbSet<User> Users { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
         public DbSet<Credential> Credentials { get; set; }
+        public DbSet<Patient> Patients { get; set; }
 
         public DomainDbContext(DbContextOptions<DomainDbContext> options) : base(options)
         {

@@ -10,6 +10,7 @@ namespace api_security.infrastructure.Percistence.PersistenceModel
         public DbSet<CredentialPM> Credentials { get; set; }
         public DbSet<UserPM> Users { get; set; }
         public DbSet<UserRolePM> UserRoles { get; set; }
+        public DbSet<PatientPM> Patients { get; set; }
 
         public PersistenceDbContext(DbContextOptions<PersistenceDbContext> options) : base(options)
         {

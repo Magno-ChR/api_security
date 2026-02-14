@@ -1,0 +1,3 @@
+﻿Add-Migration PatientEntity -OutputDir Migrations -Context PersistenceDbContext
+
+Update-Database

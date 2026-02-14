@@ -45,6 +45,9 @@ internal class UserPM
     [Column("BlockedUntilDate")]
     public DateTime? BlockedUntilDate { get; set; }
 
+    [ForeignKey(nameof(PatientId))]
+    public PatientPM Patient { get; set; }
+
     [InverseProperty(nameof(CredentialPM.User))]
     public List<CredentialPM> Credentials { get; set; } = new();
 
