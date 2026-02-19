@@ -10,6 +10,7 @@ using api_security.domain.Entities.Users;
 using api_security.application;
 using api_security.application.Common.Security;
 using api_security.infrastructure.Security;
+using api_security.domain.Entities.Patients;
 
 namespace api_security.infrastructure
 {
@@ -39,6 +40,7 @@ namespace api_security.infrastructure
             services.AddScoped<IDatabase, PersistenceDbContext>();
 
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IPatientRepository, PatientRepository>();
 
             services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 

@@ -10,4 +10,5 @@ namespace api_security.domain.Entities.Users;
 public  interface IUserRepository : IRepository<User>
 {
     Task<User?> GetByUsernameAsync(string username, bool readOnly = false);
+    Task<User?> GetByPatientIdAsync(Guid patientId, bool readOnly = false);
 }
