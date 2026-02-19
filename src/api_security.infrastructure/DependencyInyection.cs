@@ -1,4 +1,4 @@
-﻿using api_security.infrastructure.Percistence;
+using api_security.infrastructure.Percistence;
 using api_security.infrastructure.Percistence.DomainModel;
 using api_security.infrastructure.Percistence.PersistenceModel;
 using api_security.infrastructure.Percistence.Repositories;
@@ -11,6 +11,7 @@ using api_security.application;
 using api_security.application.Common.Security;
 using api_security.infrastructure.Security;
 using api_security.domain.Entities.Patients;
+using api_security.domain.Entities.UserRoles;
 
 namespace api_security.infrastructure
 {
@@ -41,6 +42,7 @@ namespace api_security.infrastructure
 
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IPatientRepository, PatientRepository>();
+            services.AddScoped<IUserRoleRepository, UserRoleRepository>();
 
             services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 

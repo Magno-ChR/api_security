@@ -1,4 +1,4 @@
-﻿using api_security.application.Authentication.Commands;
+using api_security.application.Authentication.Commands;
 using api_security.application.Common.Security;
 using api_security.domain.Entities.Users;
 using api_security.domain.Results;
@@ -57,8 +57,20 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<string>>
             return Result.Failure<string>(unauthorized);
         }
 
-        // Construir roles como strings
-        var roles = user.UserRoles.Select(r => r.Role.ToString());
+        // Solo roles activos
+        var roles = user.UserRoles
+            .Where(r => r.IsActive)
+            .Select(r => r.Role.ToString())
+            .ToList();
+
+        if (roles.Count == 0)
+        {
+            var noRolesError = new Error(
+                "Authentication.UserWithoutRoles",
+                "No se puede generar un token para un usuario sin rol",
+                ErrorType.Validation);
+            return Result.Failure<string>(noRolesError);
+        }
 
         // Generar token
         var token = jwtTokenGenerator.GenerateToken(user.Id, user.PatientId, roles);
