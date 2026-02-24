@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "api_security.WorkerService": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api_security.infrastructure.Percistence;
 
 namespace api_security.Extensions;

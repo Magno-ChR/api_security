@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using api_security.infrastructure.Percistence.PersistenceModel;
@@ -11,9 +12,11 @@ using api_security.infrastructure.Percistence.PersistenceModel;
 namespace api_security.infrastructure.Migrations
 {
     [DbContext(typeof(PersistenceDbContext))]
-    partial class PersistenceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260222232851_SyncPersistenceModel")]
+    partial class SyncPersistenceModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

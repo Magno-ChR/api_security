@@ -1,4 +1,4 @@
-﻿using api_security.domain.Abstractions;
+using api_security.domain.Abstractions;
 using api_security.domain.Entities.Credentials;
 using api_security.domain.Entities.Patients;
 using api_security.domain.Entities.UserRoles;
@@ -22,7 +22,6 @@ namespace api_security.infrastructure.Percistence.DomainModel
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
-
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Ignore<DomainEvent>();

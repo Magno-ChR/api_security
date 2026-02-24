@@ -1,4 +1,3 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using api_security.domain.Results;
 
@@ -15,41 +14,45 @@ public static class ResultExtensions
             return new OkObjectResult(result);
         }
 
-        // 2. Si es un fallo, mapea el Error a un código de estado HTTP
+        // 2. Si es un fallo, devolvemos un DTO que no accede a Value (evita InvalidOperationException al serializar)
         var error = result.Error;
+        var body = ToFailureBody(result);
 
         return error.Type switch
         {
-            ErrorType.NotFound => new NotFoundObjectResult(
-                new
-                {
-                    error.Code,
-                    error.Description
-                }
-            ), // 404 Not Found
+            ErrorType.NotFound => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status404NotFound
+            },
 
-            ErrorType.Validation => new BadRequestObjectResult(
-                new
-                {
-                    error.Code,
-                    error.Description,
-                    Details = error.Description // Puedes usar Description para el mensaje de ArgumentException
-                }
-            ), // 400 Bad Request (Ideal para errores de validación)
+            ErrorType.Validation => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            },
 
-            ErrorType.Unauthorized => new UnauthorizedResult(), // 401 Unauthorized
+            ErrorType.Unauthorized => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status401Unauthorized
+            },
 
-            // Caso por defecto para errores internos o genéricos (ErrorType.Problem, etc.)
-            _ => new ObjectResult(
-                new
-                {
-                    error.Code,
-                    error.Description
-                }
-            )
+            ErrorType.Conflict => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            },
+
+            _ => new ObjectResult(body)
             {
                 StatusCode = StatusCodes.Status500InternalServerError
-            }
+            },
         };
     }
+
+    /// <summary>Objeto con la misma forma que Result pero sin acceder a Value (para serializar errores).</summary>
+    private static object ToFailureBody<TValue>(Result<TValue> result) => new
+    {
+        value = (object?)null,
+        result.IsSuccess,
+        result.IsFailure,
+        error = result.Error
+    };
 }

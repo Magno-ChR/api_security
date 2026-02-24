@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using api_security.domain.Results;
 
 namespace api_security.Extensions;
@@ -13,22 +13,42 @@ public static class ControllerExtensions
             return controller.Ok(result);
         }
 
-        // Si es un fallo, usa tu lógica de mapeo de errores
+        // Si es un fallo, devolvemos un DTO que no accede a Value (evita InvalidOperationException al serializar)
         var error = result.Error;
+        var body = ToFailureBody(result);
 
         return error.Type switch
         {
-            ErrorType.NotFound => controller.NotFound(Error(result)), // 404
-            ErrorType.Validation => controller.BadRequest(Error(result)), // 400
-            ErrorType.Conflict => controller.Conflict(new { error.Code, error.Description }), // 409
-            ErrorType.Unauthorized => controller.Unauthorized(), // 401
+            ErrorType.NotFound => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status404NotFound
+            },
+            ErrorType.Validation => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            },
+            ErrorType.Conflict => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            },
+            ErrorType.Unauthorized => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status401Unauthorized
+            },
 
-            _ => controller.Problem(error.Description), // 500
+            _ => new ObjectResult(body)
+            {
+                StatusCode = StatusCodes.Status500InternalServerError
+            },
         };
     }
 
-    private static Result Error<TValue>(Result<TValue> result)
+    /// <summary>Objeto con la misma forma que Result pero sin acceder a Value (para serializar errores).</summary>
+    private static object ToFailureBody<TValue>(Result<TValue> result) => new
     {
-        return Result.Failure(result.Error);
-    }
+        value = (object?)null,
+        result.IsSuccess,
+        result.IsFailure,
+        error = result.Error
+    };
 }

@@ -1,6 +1,8 @@
-﻿using api_security.domain.Abstractions;
+using api_security.domain.Abstractions;
 using api_security.infrastructure.Percistence.DomainModel;
-using MediatR;
+using Joseco.Outbox.Contracts.Model;
+using Joseco.Outbox.Contracts.Service;
+using Joseco.Outbox.EFCore.Persistence;
 using System.Collections.Immutable;
 
 namespace api_security.infrastructure.Percistence
@@ -8,12 +10,17 @@ namespace api_security.infrastructure.Percistence
     internal class UnitOfWork : IUnitOfWork
     {
         private readonly DomainDbContext context;
-        private readonly IMediator mediator;
+        private readonly IOutboxService<DomainEvent> _outboxService;
+        private readonly IOutboxDatabase<DomainEvent> _outboxDatabase;
 
-        public UnitOfWork(DomainDbContext context, IMediator mediator)
+        public UnitOfWork(
+            DomainDbContext context,
+            IOutboxService<DomainEvent> outboxService,
+            IOutboxDatabase<DomainEvent> outboxDatabase)
         {
             this.context = context;
-            this.mediator = mediator;
+            _outboxService = outboxService;
+            _outboxDatabase = outboxDatabase;
         }
 
         public async Task CommitAsync(CancellationToken cancellationToken = default)
@@ -33,14 +40,14 @@ namespace api_security.infrastructure.Percistence
                 .SelectMany(domainEvents => domainEvents)
                 .ToList();
 
-            //Publish Domain Events
             foreach (var domainEvent in domainEvents)
             {
-                await mediator.Publish(domainEvent, cancellationToken);
+                var message = new OutboxMessage<DomainEvent>(domainEvent);
+                await _outboxService.AddAsync(message);
             }
 
-
             await context.SaveChangesAsync(cancellationToken);
+            await _outboxDatabase.CommitAsync(cancellationToken);
         }
     }
 }
