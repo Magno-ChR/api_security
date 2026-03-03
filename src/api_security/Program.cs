@@ -22,7 +22,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
-// Learn más sobre la configuración de OpenAPI en https://aka.ms/aspnet/openapi
+builder.Services.AddOutboxBackgroundService(delay: 5000);
+// Learn ms sobre la configuracin de OpenAPI en https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddOpenApi(options =>

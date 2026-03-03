@@ -47,9 +47,12 @@ namespace api_security.infrastructure
         }
 
         /// <summary>
-        /// Registra el servicio en segundo plano que procesa los mensajes del outbox.
-        /// Usar solo en el proyecto Worker, no en la API.
+        /// Registra el servicio en segundo plano que procesa los mensajes del outbox (tabla Outbox).
+        /// Debe estar registrado en la aplicación que escribe en el Outbox: típicamente la API web,
+        /// para que los eventos guardados en la misma transacción se procesen y se despachen (p. ej. vía MediatR).
+        /// El Worker también lo registra si corre como proceso separado y comparte la misma base de datos.
         /// </summary>
+        /// <param name="delay">Intervalo en milisegundos entre ciclos de procesamiento (por defecto 5000).</param>
         public static IServiceCollection AddOutboxBackgroundService(this IServiceCollection services, int delay = 5000)
         {
             services.AddHostedService(sp =>

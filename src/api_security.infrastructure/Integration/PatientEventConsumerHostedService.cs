@@ -85,6 +85,11 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private async Task ProcessMessageAsync(BasicDeliverEventArgs ea)
     {
         var routingKey = ea.RoutingKey;
@@ -92,12 +97,20 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         var body = ea.Body.ToArray();
         var json = Encoding.UTF8.GetString(body);
 
+        _logger.LogInformation("Received message. RoutingKey: {RoutingKey}, BodyLength: {Length}", routingKey, json.Length);
+
         try
         {
-            var dto = JsonSerializer.Deserialize<PatientIntegrationEventDto>(json);
+            var dto = JsonSerializer.Deserialize<PatientIntegrationEventDto>(json, JsonOptions);
             if (dto is null)
             {
-                _logger.LogWarning("Invalid message body, skipping: {Body}", json);
+                _logger.LogWarning("Invalid message body (null after deserialize), skipping: {Body}", json);
+                Ack(ea);
+                return;
+            }
+            if (dto.PatientId == Guid.Empty)
+            {
+                _logger.LogWarning("Invalid message body (PatientId empty), skipping: {Body}", json);
                 Ack(ea);
                 return;
             }
@@ -115,6 +128,7 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
             };
             await mediator.Send(command);
             Ack(ea);
+            _logger.LogInformation("Patient sync completed. PatientId: {PatientId}, IsCreated: {IsCreated}", dto.PatientId, isCreated);
         }
         catch (Exception ex)
         {
