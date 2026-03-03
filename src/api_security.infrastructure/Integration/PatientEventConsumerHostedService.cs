@@ -1,0 +1,142 @@
+using System.Text;
+using System.Text.Json;
+using api_security.application.Integration.Patients;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+
+namespace api_security.infrastructure.Integration;
+
+/// <summary>Consume los eventos patient.created y patient.updated desde RabbitMQ y sincroniza en la tabla Patient.</summary>
+internal sealed class PatientEventConsumerHostedService : BackgroundService
+{
+    private readonly ILogger<PatientEventConsumerHostedService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly RabbitMqOptions _options;
+    private IConnection? _connection;
+    private IModel? _channel;
+
+    public PatientEventConsumerHostedService(
+        ILogger<PatientEventConsumerHostedService> logger,
+        IServiceScopeFactory scopeFactory,
+        IOptions<RabbitMqOptions> options)
+    {
+        _logger = logger;
+        _scopeFactory = scopeFactory;
+        _options = options.Value;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            var factory = new ConnectionFactory
+            {
+                HostName = _options.HostName,
+                Port = _options.Port,
+                UserName = _options.UserName,
+                Password = _options.Password,
+                DispatchConsumersAsync = true
+            };
+            _connection = factory.CreateConnection();
+            _channel = _connection.CreateModel();
+
+            _channel.ExchangeDeclare(
+                _options.PatientsExchange,
+                ExchangeType.Topic,
+                durable: true,
+                autoDelete: false);
+
+            _channel.QueueDeclare(
+                _options.PatientsQueue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false);
+
+            _channel.QueueBind(
+                _options.PatientsQueue,
+                _options.PatientsExchange,
+                _options.PatientCreatedRoutingKey);
+            _channel.QueueBind(
+                _options.PatientsQueue,
+                _options.PatientsExchange,
+                _options.PatientUpdatedRoutingKey);
+
+            var consumer = new AsyncEventingBasicConsumer(_channel);
+            consumer.Received += (_, ea) => ProcessMessageAsync(ea);
+
+            _channel.BasicConsume(
+                _options.PatientsQueue,
+                autoAck: false,
+                consumer);
+
+            _logger.LogInformation("Patient event consumer started. Queue: {Queue}", _options.PatientsQueue);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start RabbitMQ consumer");
+            throw;
+        }
+
+        await Task.Delay(Timeout.Infinite, stoppingToken);
+    }
+
+    private async Task ProcessMessageAsync(BasicDeliverEventArgs ea)
+    {
+        var routingKey = ea.RoutingKey;
+        var isCreated = string.Equals(routingKey, _options.PatientCreatedRoutingKey, StringComparison.Ordinal);
+        var body = ea.Body.ToArray();
+        var json = Encoding.UTF8.GetString(body);
+
+        try
+        {
+            var dto = JsonSerializer.Deserialize<PatientIntegrationEventDto>(json);
+            if (dto is null)
+            {
+                _logger.LogWarning("Invalid message body, skipping: {Body}", json);
+                Ack(ea);
+                return;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var command = new SyncPatientFromIntegrationCommand
+            {
+                PatientId = dto.PatientId,
+                IsCreated = isCreated,
+                FirstName = dto.FirstName,
+                MiddleName = dto.MiddleName,
+                LastName = dto.LastName,
+                DocumentNumber = dto.DocumentNumber
+            };
+            await mediator.Send(command);
+            Ack(ea);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing message. RoutingKey: {RoutingKey}, Body: {Body}", routingKey, json);
+            Nack(ea, requeue: false);
+        }
+    }
+
+    private void Ack(BasicDeliverEventArgs ea)
+    {
+        _channel?.BasicAck(ea.DeliveryTag, false);
+    }
+
+    private void Nack(BasicDeliverEventArgs ea, bool requeue)
+    {
+        _channel?.BasicNack(ea.DeliveryTag, false, requeue);
+    }
+
+    public override void Dispose()
+    {
+        _channel?.Dispose();
+        _connection?.Dispose();
+        base.Dispose();
+    }
+}

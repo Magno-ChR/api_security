@@ -1,3 +1,4 @@
+using api_security.infrastructure.Integration;
 using api_security.infrastructure.Percistence;
 using api_security.infrastructure.Percistence.DomainModel;
 using api_security.infrastructure.Percistence.Outbox;
@@ -31,6 +32,17 @@ namespace api_security.infrastructure
             services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
             services.AddJwtAuthentication(configuration);
 
+            return services;
+        }
+
+        /// <summary>
+        /// Registra el consumidor de RabbitMQ para patient.created y patient.updated.
+        /// Llamar desde el WorkerService, no desde la API.
+        /// </summary>
+        public static IServiceCollection AddRabbitMqPatientConsumer(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<RabbitMqOptions>(configuration.GetSection(RabbitMqOptions.SectionName));
+            services.AddHostedService<PatientEventConsumerHostedService>();
             return services;
         }
 
