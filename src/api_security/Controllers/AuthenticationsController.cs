@@ -1,13 +1,15 @@
 ﻿using api_security.application.Authentication.Commands;
 using api_security.Extensions;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace api_security.Controllers;
 
-[Route("api/[controller]")]
+[Route("api/security/[controller]")]
 [ApiController]
+[AllowAnonymous]
 public class AuthenticationsController : ControllerBase
 {
     private readonly IMediator mediator;

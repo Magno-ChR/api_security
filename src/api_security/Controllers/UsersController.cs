@@ -5,13 +5,14 @@ using api_security.application.Users.GetList;
 using api_security.application.Users.RemoveRole;
 using api_security.Extensions;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace api_security.Controllers;
 
-[Route("api/[controller]")]
+[Route("api/security/[controller]")]
 [ApiController]
-//[Authorize(Roles = "admin")]
+[Authorize(Roles = "admin")]
 public class UsersController : ControllerBase
 {
     private readonly IMediator mediator;
