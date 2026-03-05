@@ -1,7 +1,7 @@
 services:
 
   # ─── PostgreSQL - Security Service ────────────────────────────────────────
-  postgres:
+  security-postgres:
     image: postgres:15
     container_name: security-postgres
     restart: always
@@ -35,7 +35,7 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      postgres:
+      security-postgres:
         condition: service_healthy
 
 # ─── Network compartida para microservicios ────────────────────────────────
