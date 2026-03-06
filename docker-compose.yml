@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: dp_db_user
       POSTGRES_PASSWORD: DpG002
     networks:
-      - nutricenter_net
+      - shared-network
     volumes:
       - security_postgres_data:/var/lib/postgresql/data
     ports:
@@ -33,10 +33,10 @@ services:
       ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=security;Username=dp_db_user;Password=DpG002;"
       RabbitMQ__HostName: rabbitmq
       RabbitMQ__Port: "5672"
-      RabbitMQ__UserName: guest
-      RabbitMQ__Password: guest
+      RabbitMQ__UserName: admin
+      RabbitMQ__Password: StrongPassword123
     networks:
-      - nutricenter_net
+      - shared-network
     ports:
       - "5001:5001"
     depends_on:
@@ -44,9 +44,6 @@ services:
         condition: service_healthy
 
 # ─── Network compartida para microservicios ────────────────────────────────
-networks:
-  nutricenter_net:
-    driver: bridge
 
 # ─── Volumen persistente ────────────────────────────────────────────────────
 volumes:
