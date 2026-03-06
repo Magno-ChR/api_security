@@ -32,57 +32,53 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        var delay = TimeSpan.FromSeconds(Math.Max(0, _options.ReconnectDelaySeconds));
+        var maxAttempts = _options.MaxReconnectAttempts;
+        var attempt = 0;
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var factory = new ConnectionFactory
+            attempt++;
+            try
             {
-                HostName = _options.HostName,
-                Port = _options.Port,
-                UserName = _options.UserName,
-                Password = _options.Password,
-                DispatchConsumersAsync = true
-            };
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
+                var factory = new ConnectionFactory
+                {
+                    HostName = _options.HostName,
+                    Port = _options.Port,
+                    UserName = _options.UserName,
+                    Password = _options.Password,
+                    VirtualHost = _options.VirtualHost ?? "/",
+                    DispatchConsumersAsync = true,
+                    AutomaticRecoveryEnabled = true,
+                    NetworkRecoveryInterval = delay
+                };
+                _connection = factory.CreateConnection();
+                _channel = _connection.CreateModel();
 
-            _channel.ExchangeDeclare(
-                _options.PatientsExchange,
-                ExchangeType.Topic,
-                durable: true,
-                autoDelete: false);
+                // No declarar exchange ni cola; la cola ms-security-queue ya existe en ms-infrastructure (definitions.json)
+                var consumer = new AsyncEventingBasicConsumer(_channel);
+                consumer.Received += (_, ea) => ProcessMessageAsync(ea);
 
-            _channel.QueueDeclare(
-                _options.PatientsQueue,
-                durable: true,
-                exclusive: false,
-                autoDelete: false);
+                _channel.BasicConsume(
+                    _options.QueueName,
+                    autoAck: false,
+                    consumer);
 
-            _channel.QueueBind(
-                _options.PatientsQueue,
-                _options.PatientsExchange,
-                _options.PatientCreatedRoutingKey);
-            _channel.QueueBind(
-                _options.PatientsQueue,
-                _options.PatientsExchange,
-                _options.PatientUpdatedRoutingKey);
-
-            var consumer = new AsyncEventingBasicConsumer(_channel);
-            consumer.Received += (_, ea) => ProcessMessageAsync(ea);
-
-            _channel.BasicConsume(
-                _options.PatientsQueue,
-                autoAck: false,
-                consumer);
-
-            _logger.LogInformation("Patient event consumer started. Queue: {Queue}", _options.PatientsQueue);
+                _logger.LogInformation("Patient event consumer started. Queue: {Queue}", _options.QueueName);
+                await Task.Delay(Timeout.Infinite, stoppingToken);
+                return;
+            }
+            catch (Exception ex) when (maxAttempts == 0 || attempt < maxAttempts)
+            {
+                _logger.LogWarning(ex, "RabbitMQ connection failed (attempt {Attempt}). Retrying in {Seconds}s...", attempt, delay.TotalSeconds);
+                await Task.Delay(delay, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start RabbitMQ consumer after {Attempt} attempts", attempt);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start RabbitMQ consumer");
-            throw;
-        }
-
-        await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

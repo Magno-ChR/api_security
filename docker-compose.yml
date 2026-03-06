@@ -24,7 +24,7 @@ services:
 
   # ─── API Security Microservice ────────────────────────────────────────────
   api-security:
-    image: geonmagno/api_security:0.1.1
+    image: geonmagno/api_security:0.1.6
     container_name: api-security
     restart: unless-stopped
     environment:
@@ -33,10 +33,15 @@ services:
       ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=security;Username=dp_db_user;Password=DpG002;"
       RabbitMQ__HostName: rabbitmq
       RabbitMQ__Port: "5672"
-      RabbitMQ__UserName: guest
-      RabbitMQ__Password: guest
+      RabbitMQ__UserName: admin
+      RabbitMQ__Password: StrongPassword123
+      RabbitMQ__VirtualHost: /
+      RabbitMQ__QueueName: ms-security-queue
+      RabbitMQ__ReconnectDelaySeconds: 5
+      RabbitMQ__MaxReconnectAttempts: 0
     networks:
       - nutricenter_net
+      - ms_infrastructure_net  # Para resolver hostname "rabbitmq" (contenedor de ms-infrastructure)
     ports:
       - "5001:5001"
     depends_on:
@@ -47,6 +52,9 @@ services:
 networks:
   nutricenter_net:
     driver: bridge
+  ms_infrastructure_net:
+    external: true
+    name: ms-infrastructure_nutricenter_net
 
 # ─── Volumen persistente ────────────────────────────────────────────────────
 volumes:
