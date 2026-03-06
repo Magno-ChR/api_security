@@ -10,16 +10,17 @@ services:
       POSTGRES_USER: dp_db_user
       POSTGRES_PASSWORD: DpG002
     networks:
-      - microservices_net
+      - nutricenter_net
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - security_postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5011:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dp_db_user -d security"]
-      interval: 5s
+      interval: 2s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 15s
 
   # ─── API Security Microservice ────────────────────────────────────────────
   api-security:
@@ -28,21 +29,25 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:5000
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=security;Username=dp_db_user;Password=DpG002;"
+      ASPNETCORE_URLS: "http://0.0.0.0:5001"
+      ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=security;Username=dp_db_user;Password=DpG002;"
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__UserName: guest
+      RabbitMQ__Password: guest
     networks:
-      - microservices_net
+      - nutricenter_net
     ports:
-      - "5000:5000"
+      - "5001:5001"
     depends_on:
       security-postgres:
         condition: service_healthy
 
 # ─── Network compartida para microservicios ────────────────────────────────
 networks:
-  microservices_net:
+  nutricenter_net:
     driver: bridge
 
 # ─── Volumen persistente ────────────────────────────────────────────────────
 volumes:
-  postgres_data:
+  security_postgres_data:
