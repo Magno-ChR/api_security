@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: dp_db_user
       POSTGRES_PASSWORD: DpG002
     networks:
-      - nutricenter_net
+      - shared-network
     volumes:
       - security_postgres_data:/var/lib/postgresql/data
     ports:
