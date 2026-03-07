@@ -48,6 +48,29 @@ services:
       security-postgres:
         condition: service_healthy
 
+  # ─── Worker Security (Outbox + RabbitMQ consumer) ─────────────────────────
+  security-worker:
+    image: geonmagno/api_security_worker:0.1.6
+    container_name: security-worker
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=security;Username=dp_db_user;Password=DpG002;"
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__UserName: admin
+      RabbitMQ__Password: StrongPassword123
+      RabbitMQ__VirtualHost: /
+      RabbitMQ__QueueName: ms-security-queue
+      RabbitMQ__ReconnectDelaySeconds: 5
+      RabbitMQ__MaxReconnectAttempts: 0
+    networks:
+      - nutricenter_net
+      - ms_infrastructure_net
+    depends_on:
+      security-postgres:
+        condition: service_healthy
+
 # ─── Network compartida para microservicios ────────────────────────────────
 networks:
   nutricenter_net:

@@ -22,8 +22,6 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddOutboxBackgroundService(delay: 5000);
-builder.Services.AddRabbitMqPatientConsumer(builder.Configuration);
 // Learn m�s sobre la configuraci�n de OpenAPI en https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 
