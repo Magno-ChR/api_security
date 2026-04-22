@@ -1,13 +1,31 @@
 using System.Diagnostics;
 using api_security.Extensions;
 using api_security.infrastructure;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using api_security.infrastructure.External.Consul;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
+using Serilog;
+using Serilog.Sinks.Grafana.Loki;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext();
+
+    var lokiUri = context.Configuration["Loki:Uri"];
+    if (Uri.TryCreate(lokiUri, UriKind.Absolute, out _))
+    {
+        loggerConfiguration.WriteTo.GrafanaLoki(lokiUri);
+    }
+});
 
 builder.Services.AddControllers();
 
@@ -23,7 +41,23 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
-// Learn m�s sobre la configuraci�n de OpenAPI en https://aka.ms/aspnet/openapi
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+builder.Services.AddHealthChecks();
+
+var otlpEndpoint = builder.Configuration["Telemetry:OtlpEndpoint"];
+if (!string.IsNullOrWhiteSpace(otlpEndpoint) && Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var otlpUri))
+{
+    var serviceName = builder.Configuration["Telemetry:ServiceName"] ?? "api-security";
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(rb => rb.AddService(serviceName))
+        .WithTracing(tracing => tracing
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter(o => o.Endpoint = otlpUri))
+        .WithMetrics(metrics => metrics
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter(o => o.Endpoint = otlpUri));
+}
+
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddOpenApi(options =>
@@ -44,7 +78,7 @@ builder.Services.AddOpenApi(options =>
             ["Bearer"] = new OpenApiSecurityScheme
             {
                 Type = SecuritySchemeType.Http,
-                Scheme = "bearer", // "bearer" refers to the header name here
+                Scheme = "bearer",
                 In = ParameterLocation.Header,
                 BearerFormat = "Json Web Token"
             }
@@ -56,11 +90,8 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -71,8 +102,15 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseSerilogRequestLogging();
+
 app.UseCors();
 app.UseHttpsRedirection();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => true
+});
 
 app.Use(async (context, next) =>
 {
@@ -106,4 +144,17 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+try
+{
+    Log.Information("Iniciando API Security");
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "La API terminó de forma inesperada");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

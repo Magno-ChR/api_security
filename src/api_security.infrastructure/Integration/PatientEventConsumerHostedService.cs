@@ -93,8 +93,10 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
                 {
                     _logger.LogWarning(
                         ex,
-                        "RabbitMQ: fallo al conectar/consumir (intento {Attempt}). Reintento en {Seconds}s.",
+                        "RabbitMQ: fallo al conectar/consumir (intento {Attempt}) hacia {Host}:{Port}. Reintento en {Seconds}s.",
                         attempt,
+                        _options.HostName,
+                        _options.Port,
                         delay.TotalSeconds);
                 }
 

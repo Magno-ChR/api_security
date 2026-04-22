@@ -1,177 +1,127 @@
-# Despliegue por SSH (solo despliegue; build/test en otro workflow si aplica).
-# Se ejecuta en cada push a la rama master.
-# Secreto SSH_PRIVATE_KEY: clave privada PEM/OpenSSH completa (varias líneas).
-# Secretos: SSH_HOST, SSH_USER, SSH_PRIVATE_KEY.
-#
-# Variables del repositorio (Settings → Secrets and variables → Actions → Variables):
-# - INFRA_HOST: host/IP de infra (RabbitMQ, etc.) si difiere del hostname por defecto.
-# - API_SECURITY_IMAGE, API_SECURITY_WORKER_IMAGE: imágenes publicadas (si no usas solo --build).
-# - ASPNETCORE_ENVIRONMENT (opcional, por defecto Production).
-# - POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_PUBLISH_PORT, API_SECURITY_PUBLISH_PORT.
-# - RABBITMQ_HOSTNAME, RABBITMQ_PORT, RABBITMQ_USERNAME, RABBITMQ_PASSWORD, RABBITMQ_VIRTUALHOST,
-#   RABBITMQ_QUEUE_NAME, RABBITMQ_PATIENT_CREATED_ROUTING_KEY, RABBITMQ_PATIENT_UPDATED_ROUTING_KEY,
-#   RABBITMQ_RECONNECT_DELAY_SECONDS, RABBITMQ_MAX_RECONNECT_ATTEMPTS.
-
-name: Deploy SSH
-
-on:
-  push:
-    branches: [master]
-
-concurrency:
-  group: deploy-ssh-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Crear archivo de despliegue
-        run: |
-          git archive --format=tar.gz --output=deploy.tar.gz HEAD -- .
-
-      - name: Configurar SSH
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          if [ -z "${SSH_HOST}" ]; then
-            echo "::error::SSH_HOST está vacío. Crea el secreto en el repositorio."
-            exit 1
-          fi
-          if [ -z "${SSH_USER}" ]; then
-            echo "::error::SSH_USER está vacío. Crea el secreto en el repositorio."
-            exit 1
-          fi
-          if [ -z "${SSH_PRIVATE_KEY}" ]; then
-            echo "::error::SSH_PRIVATE_KEY está vacío. Crea el secreto en el repositorio."
-            exit 1
-          fi
-          if ! printf '%s\n' "$SSH_PRIVATE_KEY" | grep -qE '^-----BEGIN .+ PRIVATE KEY-----'; then
-            echo "::error::SSH_PRIVATE_KEY no parece una clave privada PEM/OpenSSH."
-            exit 1
-          fi
-          if ! printf '%s\n' "$SSH_PRIVATE_KEY" | grep -qE '^-----END .+ PRIVATE KEY-----'; then
-            echo "::error::Falta la línea -----END ... PRIVATE KEY----- (secreto truncado al pegar)."
-            exit 1
-          fi
-          mkdir -p "$HOME/.ssh"
-          chmod 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/id_ed25519"
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          ssh-keyscan -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
-          chmod 644 "$HOME/.ssh/known_hosts"
-
-      - name: Subir archivo al servidor
-        run: |
-          set -euo pipefail
-          scp -o StrictHostKeyChecking=yes \
-             deploy.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/deploy.tar.gz"
-
-      - name: Desplegar vía SSH
-        env:
-          ASPNETCORE_ENVIRONMENT: ${{ vars.ASPNETCORE_ENVIRONMENT }}
-          API_SECURITY_IMAGE: ${{ vars.API_SECURITY_IMAGE }}
-          API_SECURITY_WORKER_IMAGE: ${{ vars.API_SECURITY_WORKER_IMAGE }}
-          INFRA_HOST: ${{ vars.INFRA_HOST }}
-          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
-          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ vars.POSTGRES_PASSWORD }}
-          POSTGRES_PUBLISH_PORT: ${{ vars.POSTGRES_PUBLISH_PORT }}
-          API_SECURITY_PUBLISH_PORT: ${{ vars.API_SECURITY_PUBLISH_PORT }}
-          RABBITMQ_HOSTNAME: ${{ vars.RABBITMQ_HOSTNAME }}
-          RABBITMQ_PORT: ${{ vars.RABBITMQ_PORT }}
-          RABBITMQ_USERNAME: ${{ vars.RABBITMQ_USERNAME }}
-          RABBITMQ_PASSWORD: ${{ vars.RABBITMQ_PASSWORD }}
-          RABBITMQ_VIRTUALHOST: ${{ vars.RABBITMQ_VIRTUALHOST }}
-          RABBITMQ_QUEUE_NAME: ${{ vars.RABBITMQ_QUEUE_NAME }}
-          RABBITMQ_PATIENT_CREATED_ROUTING_KEY: ${{ vars.RABBITMQ_PATIENT_CREATED_ROUTING_KEY }}
-          RABBITMQ_PATIENT_UPDATED_ROUTING_KEY: ${{ vars.RABBITMQ_PATIENT_UPDATED_ROUTING_KEY }}
-          RABBITMQ_RECONNECT_DELAY_SECONDS: ${{ vars.RABBITMQ_RECONNECT_DELAY_SECONDS }}
-          RABBITMQ_MAX_RECONNECT_ATTEMPTS: ${{ vars.RABBITMQ_MAX_RECONNECT_ATTEMPTS }}
-        run: |
-          set -euo pipefail
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT}" \
-            API_SECURITY_IMAGE="${API_SECURITY_IMAGE}" \
-            API_SECURITY_WORKER_IMAGE="${API_SECURITY_WORKER_IMAGE}" \
-            INFRA_HOST="${INFRA_HOST}" \
-            POSTGRES_DB="${POSTGRES_DB}" \
-            POSTGRES_USER="${POSTGRES_USER}" \
-            POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-            POSTGRES_PUBLISH_PORT="${POSTGRES_PUBLISH_PORT}" \
-            API_SECURITY_PUBLISH_PORT="${API_SECURITY_PUBLISH_PORT}" \
-            RABBITMQ_HOSTNAME="${RABBITMQ_HOSTNAME}" \
-            RABBITMQ_PORT="${RABBITMQ_PORT}" \
-            RABBITMQ_USERNAME="${RABBITMQ_USERNAME}" \
-            RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD}" \
-            RABBITMQ_VIRTUALHOST="${RABBITMQ_VIRTUALHOST}" \
-            RABBITMQ_QUEUE_NAME="${RABBITMQ_QUEUE_NAME}" \
-            RABBITMQ_PATIENT_CREATED_ROUTING_KEY="${RABBITMQ_PATIENT_CREATED_ROUTING_KEY}" \
-            RABBITMQ_PATIENT_UPDATED_ROUTING_KEY="${RABBITMQ_PATIENT_UPDATED_ROUTING_KEY}" \
-            RABBITMQ_RECONNECT_DELAY_SECONDS="${RABBITMQ_RECONNECT_DELAY_SECONDS}" \
-            RABBITMQ_MAX_RECONNECT_ATTEMPTS="${RABBITMQ_MAX_RECONNECT_ATTEMPTS}" \
-            'bash -se' <<'EOF'
-          set -euo pipefail
-          DEPLOY_DIR="${HOME}/api_security"
-          mkdir -p "$DEPLOY_DIR"
-          cd "$DEPLOY_DIR"
-          tar xzf "${HOME}/deploy.tar.gz"
-          rm -f "${HOME}/deploy.tar.gz"
-          docker network create develop_nutricenter_net 2>/dev/null || true
-          export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Production}"
-          export API_SECURITY_IMAGE="${API_SECURITY_IMAGE:-api-security:dev}"
-          export API_SECURITY_WORKER_IMAGE="${API_SECURITY_WORKER_IMAGE:-security-worker:dev}"
-          export POSTGRES_DB="${POSTGRES_DB:-security}"
-          export POSTGRES_USER="${POSTGRES_USER:-dp_db_user}"
-          export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-DpG002}"
-          export POSTGRES_PUBLISH_PORT="${POSTGRES_PUBLISH_PORT:-5011}"
-          export API_SECURITY_PUBLISH_PORT="${API_SECURITY_PUBLISH_PORT:-5001}"
-          export INFRA_HOST="${INFRA_HOST:-${RABBITMQ_HOSTNAME:-rabbitmq}}"
-          export RABBITMQ__HOSTNAME="${RABBITMQ_HOSTNAME:-${INFRA_HOST}}"
-          export RABBITMQ__PORT="${RABBITMQ_PORT:-5672}"
-          export RABBITMQ__USERNAME="${RABBITMQ_USERNAME:-admin}"
-          export RABBITMQ__PASSWORD="${RABBITMQ_PASSWORD:-StrongPassword123}"
-          export RABBITMQ__VIRTUALHOST="${RABBITMQ_VIRTUALHOST:-/}"
-          export RABBITMQ__QUEUENAME="${RABBITMQ_QUEUE_NAME:-ms-security-queue}"
-          export RABBITMQ__PATIENT_CREATED_ROUTING_KEY="${RABBITMQ_PATIENT_CREATED_ROUTING_KEY:-patient.created}"
-          export RABBITMQ__PATIENT_UPDATED_ROUTING_KEY="${RABBITMQ_PATIENT_UPDATED_ROUTING_KEY:-patient.updated}"
-          export RABBITMQ__RECONNECT_DELAY_SECONDS="${RABBITMQ_RECONNECT_DELAY_SECONDS:-5}"
-          export RABBITMQ__MAX_RECONNECT_ATTEMPTS="${RABBITMQ_MAX_RECONNECT_ATTEMPTS:-0}"
-
-          docker compose -f "$DEPLOY_DIR/docker-compose-dev.yml" config >/dev/null
-          docker compose -f "$DEPLOY_DIR/docker-compose-dev.yml" up -d --build --remove-orphans
-          EOF
-
-      - name: Monitoreo post-release (logs y comprobación de puerto)
-        run: |
-          set -euo pipefail
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'bash -se' <<'EOF'
-          set -uo pipefail
-          echo "=== Docker status ==="
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-          echo "=== Comprobación API (localhost:5001) ==="
-          health_ok=0
-          for i in $(seq 1 12); do
-            if curl -sS --connect-timeout 3 -o /dev/null "http://127.0.0.1:5001/" 2>/dev/null; then
-              health_ok=1
-              break
-            fi
-            echo "Intento ${i}/12: API no responde todavía, reintentando en 5s..."
-            sleep 5
-          done
-          if [ "$health_ok" -eq 1 ]; then
-            echo "La API responde en http://127.0.0.1:5001/"
-          else
-            echo "::warning::No hubo respuesta HTTP estable en 12 intentos. Revisa logs."
-          fi
-          echo "=== API logs (tail 80) ==="
-          docker compose -f "${HOME}/api_security/docker-compose-dev.yml" logs --tail 80 api-security || true
-          echo "=== Worker logs (tail 80) ==="
-          docker compose -f "${HOME}/api_security/docker-compose-dev.yml" logs --tail 80 security-worker || true
-          EOF
+# Despliegue por SSH (solo despliegue). Se ejecuta en cada push a la rama master.
+# Secretos: SSH_HOST, SSH_USER, SSH_PRIVATE_KEY.
+#
+# Variable del repositorio (Actions → Variables):
+# - INFRA_HOST: host/IP donde están RabbitMQ (5672), OTLP (4317), Loki (3100) y Consul (8500).
+#   Se exporta en el servidor antes de `docker compose`; docker-compose-dev.yml solo usa ${INFRA_HOST}.
+
+name: Deploy SSH
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: deploy-ssh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar INFRA_HOST
+        run: |
+          if [ -z "${{ vars.INFRA_HOST }}" ]; then
+            echo "::error::Define la variable del repositorio INFRA_HOST (host o IP de infraestructura)."
+            exit 1
+          fi
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Crear archivo de despliegue
+        run: |
+          git archive --format=tar.gz --output=deploy.tar.gz HEAD -- .
+
+      - name: Configurar SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SSH_HOST}" ]; then
+            echo "::error::SSH_HOST está vacío. Crea el secreto en el repositorio."
+            exit 1
+          fi
+          if [ -z "${SSH_USER}" ]; then
+            echo "::error::SSH_USER está vacío. Crea el secreto en el repositorio."
+            exit 1
+          fi
+          if [ -z "${SSH_PRIVATE_KEY}" ]; then
+            echo "::error::SSH_PRIVATE_KEY está vacío. Crea el secreto en el repositorio."
+            exit 1
+          fi
+          if ! printf '%s\n' "$SSH_PRIVATE_KEY" | grep -qE '^-----BEGIN .+ PRIVATE KEY-----'; then
+            echo "::error::SSH_PRIVATE_KEY no parece una clave privada PEM/OpenSSH."
+            exit 1
+          fi
+          if ! printf '%s\n' "$SSH_PRIVATE_KEY" | grep -qE '^-----END .+ PRIVATE KEY-----'; then
+            echo "::error::Falta la línea -----END ... PRIVATE KEY----- (secreto truncado al pegar)."
+            exit 1
+          fi
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Subir archivo al servidor
+        run: |
+          set -euo pipefail
+          scp -o StrictHostKeyChecking=yes \
+             deploy.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/deploy.tar.gz"
+
+      - name: Desplegar vía SSH
+        env:
+          INFRA_HOST: ${{ vars.INFRA_HOST }}
+        run: |
+          set -euo pipefail
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            INFRA_HOST="${INFRA_HOST}" \
+            'bash -se' <<'EOF'
+          set -euo pipefail
+          if [ -z "${INFRA_HOST}" ]; then
+            echo "::error::INFRA_HOST vacío en el servidor."
+            exit 1
+          fi
+          export INFRA_HOST
+          DEPLOY_DIR="${HOME}/api_security"
+          mkdir -p "$DEPLOY_DIR"
+          cd "$DEPLOY_DIR"
+          tar xzf "${HOME}/deploy.tar.gz"
+          rm -f "${HOME}/deploy.tar.gz"
+          docker network create develop_nutricenter_net 2>/dev/null || true
+          docker compose -f "$DEPLOY_DIR/docker-compose-dev.yml" config >/dev/null
+          docker compose -f "$DEPLOY_DIR/docker-compose-dev.yml" up -d --build --remove-orphans
+          EOF
+
+      - name: Monitoreo post-release (logs y comprobación de puerto)
+        run: |
+          set -euo pipefail
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'bash -se' <<'EOF'
+          set -uo pipefail
+          echo "=== Docker status ==="
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo "=== Comprobación API (localhost:5001) ==="
+          health_ok=0
+          for i in $(seq 1 12); do
+            if curl -fsS --connect-timeout 3 "http://127.0.0.1:5001/health/live" >/dev/null 2>&1; then
+              health_ok=1
+              break
+            fi
+            echo "Intento ${i}/12: API no responde todavía, reintentando en 5s..."
+            sleep 5
+          done
+          if [ "$health_ok" -eq 1 ]; then
+            echo "Health OK en http://127.0.0.1:5001/health/live"
+          else
+            echo "::warning::No hubo respuesta HTTP estable en 12 intentos. Revisa logs."
+          fi
+          echo "=== API logs (tail 80) ==="
+          docker compose -f "${HOME}/api_security/docker-compose-dev.yml" logs --tail 80 api-security || true
+          echo "=== Worker logs (tail 80) ==="
+          docker compose -f "${HOME}/api_security/docker-compose-dev.yml" logs --tail 80 security-worker || true
+          EOF
+
