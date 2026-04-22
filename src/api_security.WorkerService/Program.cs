@@ -6,6 +6,7 @@ using Serilog;
 using Serilog.Sinks.Grafana.Loki;
 
 var builder = Host.CreateApplicationBuilder(args);
+var serviceName = builder.Configuration["Telemetry:ServiceName"] ?? "security-worker";
 
 builder.Services.AddSerilog((services, loggerConfiguration) =>
 {
@@ -15,16 +16,19 @@ builder.Services.AddSerilog((services, loggerConfiguration) =>
         .Enrich.FromLogContext();
 
     var lokiUri = builder.Configuration["Loki:Uri"];
-    if (Uri.TryCreate(lokiUri, UriKind.Absolute, out _))
+    if (!string.IsNullOrWhiteSpace(lokiUri) &&
+        Uri.TryCreate(lokiUri.Trim(), UriKind.Absolute, out var loki) &&
+        (loki.Scheme == Uri.UriSchemeHttp || loki.Scheme == Uri.UriSchemeHttps))
     {
-        loggerConfiguration.WriteTo.GrafanaLoki(lokiUri);
+        loggerConfiguration.WriteTo.GrafanaLoki(
+            lokiUri.Trim(),
+            [new LokiLabel { Key = "service_name", Value = serviceName }]);
     }
 });
 
 var otlpEndpoint = builder.Configuration["Telemetry:OtlpEndpoint"];
-if (!string.IsNullOrWhiteSpace(otlpEndpoint) && Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var otlpUri))
+if (!string.IsNullOrWhiteSpace(otlpEndpoint) && Uri.TryCreate(otlpEndpoint.Trim(), UriKind.Absolute, out var otlpUri))
 {
-    var serviceName = builder.Configuration["Telemetry:ServiceName"] ?? "security-worker";
     builder.Services.AddOpenTelemetry()
         .ConfigureResource(rb => rb.AddService(serviceName))
         .WithTracing(tracing => tracing
