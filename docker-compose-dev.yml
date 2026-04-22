@@ -76,13 +76,16 @@ services:
       RabbitMQ__HostName: ${INFRA_HOST}
       RabbitMQ__Port: "5672"
       RabbitMQ__UserName: admin
-      RabbitMQ__Password: StrongPassword123
+      RabbitMQ__Password: admin
       RabbitMQ__VirtualHost: /
       RabbitMQ__QueueName: ms-security-queue
       RabbitMQ__PatientCreatedRoutingKey: patient.created
       RabbitMQ__PatientUpdatedRoutingKey: patient.updated
       RabbitMQ__ReconnectDelaySeconds: "5"
       RabbitMQ__MaxReconnectAttempts: "0"
+      Telemetry__ServiceName: security-worker
+      Telemetry__OtlpEndpoint: http://${INFRA_HOST}:4317
+      Loki__Uri: http://${INFRA_HOST}:3100
     depends_on:
       security-postgres:
         condition: service_healthy
