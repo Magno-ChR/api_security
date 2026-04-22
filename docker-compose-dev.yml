@@ -40,7 +40,7 @@ services:
       RabbitMQ__HostName: ${INFRA_HOST}
       RabbitMQ__Port: "5672"
       RabbitMQ__UserName: admin
-      RabbitMQ__Password: StrongPassword123
+      RabbitMQ__Password: admin
       RabbitMQ__VirtualHost: /
       RabbitMQ__QueueName: ms-security-queue
       RabbitMQ__PatientCreatedRoutingKey: patient.created
