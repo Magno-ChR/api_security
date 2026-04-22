@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using api_security.Extensions;
 using api_security.infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -72,6 +73,32 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    var path = $"{context.Request.Path}{context.Request.QueryString}";
+    app.Logger.LogInformation(
+        "Solicitud HTTP {Method} {Path}",
+        context.Request.Method,
+        path);
+
+    var sw = Stopwatch.StartNew();
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        sw.Stop();
+        app.Logger.LogInformation(
+            "Respuesta HTTP {Method} {Path} -> {StatusCode} ({ElapsedMs} ms)",
+            context.Request.Method,
+            path,
+            context.Response.StatusCode,
+            sw.ElapsedMilliseconds);
+    }
+});
+
 app.ApplyMigrations();
 
 app.UseAuthentication();

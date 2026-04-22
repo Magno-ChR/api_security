@@ -1,0 +1,89 @@
+services:
+
+  # --- PostgreSQL - Security Service ----------------------------------------
+  security-postgres:
+    image: postgres:15
+    container_name: security-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-security}
+      POSTGRES_USER: ${POSTGRES_USER:-dp_db_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-DpG002}
+    volumes:
+      - security_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5011}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - nutricenter_net
+
+  # --- API Security Microservice --------------------------------------------
+  api-security:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${API_SECURITY_IMAGE:-api-security:dev}
+    container_name: api-security
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: "http://0.0.0.0:5001"
+      ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=${POSTGRES_DB:-security};Username=${POSTGRES_USER:-dp_db_user};Password=${POSTGRES_PASSWORD:-DpG002};"
+      RabbitMQ__HostName: ${INFRA_HOST:-${RABBITMQ__HOSTNAME:-rabbitmq}}
+      RabbitMQ__Port: "${RABBITMQ__PORT:-5672}"
+      RabbitMQ__UserName: ${RABBITMQ__USERNAME:-admin}
+      RabbitMQ__Password: ${RABBITMQ__PASSWORD:-StrongPassword123}
+      RabbitMQ__VirtualHost: ${RABBITMQ__VIRTUALHOST:-/}
+      RabbitMQ__QueueName: ${RABBITMQ__QUEUENAME:-ms-security-queue}
+      RabbitMQ__PatientCreatedRoutingKey: ${RABBITMQ__PATIENT_CREATED_ROUTING_KEY:-patient.created}
+      RabbitMQ__PatientUpdatedRoutingKey: ${RABBITMQ__PATIENT_UPDATED_ROUTING_KEY:-patient.updated}
+      RabbitMQ__ReconnectDelaySeconds: ${RABBITMQ__RECONNECT_DELAY_SECONDS:-5}
+      RabbitMQ__MaxReconnectAttempts: ${RABBITMQ__MAX_RECONNECT_ATTEMPTS:-0}
+    ports:
+      - "${API_SECURITY_PUBLISH_PORT:-5001}:5001"
+    depends_on:
+      security-postgres:
+        condition: service_healthy
+    networks:
+      - nutricenter_net
+
+  # --- Worker Security (Outbox + RabbitMQ consumer) -----------------------
+  security-worker:
+    build:
+      context: .
+      dockerfile: src/api_security.WorkerService/Dockerfile
+    image: ${API_SECURITY_WORKER_IMAGE:-security-worker:dev}
+    container_name: security-worker
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__DefaultConnection: "Host=security-postgres;Port=5432;Database=${POSTGRES_DB:-security};Username=${POSTGRES_USER:-dp_db_user};Password=${POSTGRES_PASSWORD:-DpG002};"
+      RabbitMQ__HostName: ${INFRA_HOST:-${RABBITMQ__HOSTNAME:-rabbitmq}}
+      RabbitMQ__Port: "${RABBITMQ__PORT:-5672}"
+      RabbitMQ__UserName: ${RABBITMQ__USERNAME:-admin}
+      RabbitMQ__Password: ${RABBITMQ__PASSWORD:-StrongPassword123}
+      RabbitMQ__VirtualHost: ${RABBITMQ__VIRTUALHOST:-/}
+      RabbitMQ__QueueName: ${RABBITMQ__QUEUENAME:-ms-security-queue}
+      RabbitMQ__PatientCreatedRoutingKey: ${RABBITMQ__PATIENT_CREATED_ROUTING_KEY:-patient.created}
+      RabbitMQ__PatientUpdatedRoutingKey: ${RABBITMQ__PATIENT_UPDATED_ROUTING_KEY:-patient.updated}
+      RabbitMQ__ReconnectDelaySeconds: ${RABBITMQ__RECONNECT_DELAY_SECONDS:-5}
+      RabbitMQ__MaxReconnectAttempts: ${RABBITMQ__MAX_RECONNECT_ATTEMPTS:-0}
+    depends_on:
+      security-postgres:
+        condition: service_healthy
+    networks:
+      - nutricenter_net
+
+# Red externa: misma que en el servidor (compose proyecto "develop" + red nutricenter_net).
+networks:
+  nutricenter_net:
+    external: true
+    name: develop_nutricenter_net
+
+volumes:
+  security_postgres_data:
