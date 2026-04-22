@@ -64,20 +64,67 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
                     autoAck: false,
                     consumer);
 
-                _logger.LogInformation("Patient event consumer started. Queue: {Queue}", _options.QueueName);
+                _logger.LogInformation(
+                    "Patient event consumer started. Host: {Host}, Queue: {Queue}",
+                    _options.HostName,
+                    _options.QueueName);
+                attempt = 0;
                 await Task.Delay(Timeout.Infinite, stoppingToken);
                 return;
             }
-            catch (Exception ex) when (maxAttempts == 0 || attempt < maxAttempts)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.LogWarning(ex, "RabbitMQ connection failed (attempt {Attempt}). Retrying in {Seconds}s...", attempt, delay.TotalSeconds);
-                await Task.Delay(delay, stoppingToken);
+                return;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to start RabbitMQ consumer after {Attempt} attempts", attempt);
-                throw;
+                SafeDisposeConnection();
+
+                var burstExhausted = maxAttempts > 0 && attempt >= maxAttempts;
+                if (burstExhausted)
+                {
+                    _logger.LogError(
+                        ex,
+                        "RabbitMQ: error tras {Max} intentos consecutivos; reiniciando ciclo (el worker no se detiene).",
+                        maxAttempts);
+                    attempt = 0;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "RabbitMQ: fallo al conectar/consumir (intento {Attempt}). Reintento en {Seconds}s.",
+                        attempt,
+                        delay.TotalSeconds);
+                }
+
+                try
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
             }
+        }
+    }
+
+    private void SafeDisposeConnection()
+    {
+        try
+        {
+            _channel?.Dispose();
+            _connection?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RabbitMQ: error al liberar conexión/canal antes de reintentar.");
+        }
+        finally
+        {
+            _channel = null;
+            _connection = null;
         }
     }
 
@@ -145,8 +192,7 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
 
     public override void Dispose()
     {
-        _channel?.Dispose();
-        _connection?.Dispose();
+        SafeDisposeConnection();
         base.Dispose();
     }
 }

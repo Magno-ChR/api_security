@@ -1,7 +1,9 @@
 # Build con contexto = raíz del repo. Desde repo root:
 # docker build -f src/api_security.WorkerService/Dockerfile -t geonmagno/api_security_worker:0.1.0 .
+#
+# Imagen aspnet (no runtime): Infrastructure referencia JwtBearer y el app host requiere Microsoft.AspNetCore.App.
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
