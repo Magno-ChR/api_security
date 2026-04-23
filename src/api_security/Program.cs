@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using api_security.Extensions;
 using api_security.infrastructure;
 using api_security.infrastructure.External.Consul;
@@ -9,6 +8,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 using Serilog;
+using Serilog.Events;
 using Serilog.Sinks.Grafana.Loki;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -106,7 +106,26 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} -> {StatusCode} ({Elapsed:0.0} ms)";
+    options.GetLevel = (httpContext, elapsed, ex) =>
+    {
+        if (ex is not null || httpContext.Response.StatusCode >= 500)
+        {
+            return LogEventLevel.Error;
+        }
+
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/health", StringComparison.OrdinalIgnoreCase))
+        {
+            return LogEventLevel.Verbose;
+        }
+
+        return LogEventLevel.Information;
+    };
+});
 
 app.UseCors();
 app.UseHttpsRedirection();
@@ -114,31 +133,6 @@ app.UseHttpsRedirection();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => true
-});
-
-app.Use(async (context, next) =>
-{
-    var path = $"{context.Request.Path}{context.Request.QueryString}";
-    app.Logger.LogInformation(
-        "Solicitud HTTP {Method} {Path}",
-        context.Request.Method,
-        path);
-
-    var sw = Stopwatch.StartNew();
-    try
-    {
-        await next();
-    }
-    finally
-    {
-        sw.Stop();
-        app.Logger.LogInformation(
-            "Respuesta HTTP {Method} {Path} -> {StatusCode} ({ElapsedMs} ms)",
-            context.Request.Method,
-            path,
-            context.Response.StatusCode,
-            sw.ElapsedMilliseconds);
-    }
 });
 
 app.ApplyMigrations();
