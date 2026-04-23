@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 
 namespace api_security.infrastructure.Integration;
 
@@ -55,7 +56,8 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
                 _connection = factory.CreateConnection();
                 _channel = _connection.CreateModel();
 
-                // No declarar exchange ni cola; la cola ms-security-queue ya existe en ms-infrastructure (definitions.json)
+                EnsureQueueBindings(_channel);
+
                 var consumer = new AsyncEventingBasicConsumer(_channel);
                 consumer.Received += (_, ea) => ProcessMessageAsync(ea);
 
@@ -65,8 +67,9 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
                     consumer);
 
                 _logger.LogInformation(
-                    "Patient event consumer started. Host: {Host}, Queue: {Queue}",
+                    "Patient event consumer started. Host: {Host}, Exchange: {Exchange}, Queue: {Queue}",
                     _options.HostName,
+                    _options.ExchangeName,
                     _options.QueueName);
                 attempt = 0;
                 await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -135,10 +138,34 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         PropertyNameCaseInsensitive = true
     };
 
+    private void EnsureQueueBindings(IModel channel)
+    {
+        channel.ExchangeDeclare(
+            exchange: _options.ExchangeName,
+            type: ExchangeType.Topic,
+            durable: true,
+            autoDelete: false);
+
+        try
+        {
+            channel.QueueDeclarePassive(_options.QueueName);
+        }
+        catch (OperationInterruptedException ex)
+        {
+            throw new InvalidOperationException(
+                $"RabbitMQ queue '{_options.QueueName}' was not found while configuring patient event consumption.",
+                ex);
+        }
+
+        channel.QueueBind(_options.QueueName, _options.ExchangeName, _options.PatientCreatedRoutingKey);
+        channel.QueueBind(_options.QueueName, _options.ExchangeName, _options.PatientUpdatedRoutingKey);
+    }
+
     private async Task ProcessMessageAsync(BasicDeliverEventArgs ea)
     {
         var routingKey = ea.RoutingKey;
         var isCreated = string.Equals(routingKey, _options.PatientCreatedRoutingKey, StringComparison.Ordinal);
+        var isUpdated = string.Equals(routingKey, _options.PatientUpdatedRoutingKey, StringComparison.Ordinal);
         var body = ea.Body.ToArray();
         var json = Encoding.UTF8.GetString(body);
 
@@ -146,6 +173,13 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
 
         try
         {
+            if (!isCreated && !isUpdated)
+            {
+                _logger.LogWarning("Unsupported routing key {RoutingKey}, skipping message: {Body}", routingKey, json);
+                Ack(ea);
+                return;
+            }
+
             var dto = JsonSerializer.Deserialize<PatientIntegrationEventDto>(json, JsonOptions);
             if (dto is null)
             {

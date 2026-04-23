@@ -1,6 +1,6 @@
 namespace api_security.infrastructure.Integration;
 
-/// <summary>Opciones para consumir desde la cola ms-security-queue (definida en ms-infrastructure). No se declaran exchanges ni colas.</summary>
+/// <summary>Opciones para consumir eventos de paciente desde RabbitMQ.</summary>
 internal sealed class RabbitMqOptions
 {
     public const string SectionName = "RabbitMQ";
@@ -10,8 +10,10 @@ internal sealed class RabbitMqOptions
     public string Password { get; set; } = "guest";
     /// <summary>VirtualHost del broker (por defecto "/").</summary>
     public string VirtualHost { get; set; } = "/";
-    /// <summary>Cola a consumir; ya definida en ms-infrastructure definitions.json. Solo consumir, no declarar.</summary>
+    /// <summary>Cola a consumir. Debe existir previamente en RabbitMQ.</summary>
     public string QueueName { get; set; } = "ms-security-queue";
+    /// <summary>Exchange topic desde el que api_patient publica los eventos de pacientes.</summary>
+    public string ExchangeName { get; set; } = "patients";
     public string PatientCreatedRoutingKey { get; set; } = "patient.created";
     public string PatientUpdatedRoutingKey { get; set; } = "patient.updated";
     /// <summary>Segundos de espera entre reintentos al arrancar si RabbitMQ no está listo. 0 = no reintentar.</summary>

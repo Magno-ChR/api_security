@@ -43,6 +43,7 @@ services:
       RabbitMQ__Password: admin
       RabbitMQ__VirtualHost: /
       RabbitMQ__QueueName: ms-security-queue
+      RabbitMQ__ExchangeName: patients
       RabbitMQ__PatientCreatedRoutingKey: patient.created
       RabbitMQ__PatientUpdatedRoutingKey: patient.updated
       RabbitMQ__ReconnectDelaySeconds: "5"
@@ -79,6 +80,7 @@ services:
       RabbitMQ__Password: admin
       RabbitMQ__VirtualHost: /
       RabbitMQ__QueueName: ms-security-queue
+      RabbitMQ__ExchangeName: patients
       RabbitMQ__PatientCreatedRoutingKey: patient.created
       RabbitMQ__PatientUpdatedRoutingKey: patient.updated
       RabbitMQ__ReconnectDelaySeconds: "5"
