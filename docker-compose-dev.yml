@@ -52,7 +52,7 @@ services:
       Loki__Uri: http://${INFRA_HOST}:3100
       Consul__Host: http://${INFRA_HOST}:8500
       Consul__ServiceName: api-security
-      Consul__ServiceAddress: api-security
+      Consul__ServiceAddress: 167.71.109.119
       Consul__ServicePort: "5001"
     ports:
       - "5001:5001"
