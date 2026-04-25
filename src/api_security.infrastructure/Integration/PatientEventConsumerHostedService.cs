@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using api_security.application.Integration.Patients;
@@ -15,6 +16,7 @@ namespace api_security.infrastructure.Integration;
 /// <summary>Consume los eventos patient.created y patient.updated desde RabbitMQ y sincroniza en la tabla Patient.</summary>
 internal sealed class PatientEventConsumerHostedService : BackgroundService
 {
+    private static readonly ActivitySource ActivitySource = new(IntegrationTelemetry.ActivitySourceName);
     private readonly ILogger<PatientEventConsumerHostedService> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly RabbitMqOptions _options;
@@ -170,14 +172,27 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         var json = Encoding.UTF8.GetString(body);
         var messageId = ea.BasicProperties?.MessageId;
         var correlationId = ea.BasicProperties?.CorrelationId;
+        using var activity = ActivitySource.StartActivity("rabbitmq consume patient event", ActivityKind.Consumer);
+
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.destination.name", _options.ExchangeName);
+        activity?.SetTag("messaging.destination.kind", "exchange");
+        activity?.SetTag("messaging.rabbitmq.destination.routing_key", routingKey);
+        activity?.SetTag("messaging.operation.type", "process");
+        activity?.SetTag("messaging.message.id", messageId);
+        activity?.SetTag("messaging.conversation_id", correlationId);
+        activity?.SetTag("messaging.rabbitmq.delivery_tag", ea.DeliveryTag);
+        activity?.SetTag("messaging.rabbitmq.queue", _options.QueueName);
 
         _logger.LogInformation(
-            "RabbitMQ message received. Exchange: {Exchange}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, BodyLength: {Length}",
+            "RabbitMQ message received. Exchange: {Exchange}, Queue: {Queue}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, TraceId: {TraceId}, BodyLength: {Length}",
             ea.Exchange,
+            _options.QueueName,
             routingKey,
             ea.DeliveryTag,
             messageId,
             correlationId,
+            activity?.TraceId.ToString(),
             json.Length);
 
         try
@@ -185,11 +200,13 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
             if (!isCreated && !isUpdated)
             {
                 _logger.LogWarning(
-                    "RabbitMQ message skipped due to unsupported routing key. Exchange: {Exchange}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, Body: {Body}",
+                    "RabbitMQ message skipped due to unsupported routing key. Exchange: {Exchange}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, TraceId: {TraceId}, Body: {Body}",
                     ea.Exchange,
                     routingKey,
                     ea.DeliveryTag,
+                    activity?.TraceId.ToString(),
                     json);
+                activity?.SetStatus(ActivityStatusCode.Ok, "unsupported routing key skipped");
                 Ack(ea);
                 return;
             }
@@ -198,32 +215,41 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
             if (dto is null)
             {
                 _logger.LogWarning(
-                    "RabbitMQ message skipped because deserialization returned null. RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, Body: {Body}",
+                    "RabbitMQ message skipped because deserialization returned null. RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, TraceId: {TraceId}, Body: {Body}",
                     routingKey,
                     ea.DeliveryTag,
+                    activity?.TraceId.ToString(),
                     json);
+                activity?.SetStatus(ActivityStatusCode.Error, "deserialization returned null");
                 Ack(ea);
                 return;
             }
             if (dto.PatientId == Guid.Empty)
             {
                 _logger.LogWarning(
-                    "RabbitMQ message skipped because PatientId is empty. RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, EventId: {EventId}, Body: {Body}",
+                    "RabbitMQ message skipped because PatientId is empty. RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, EventId: {EventId}, TraceId: {TraceId}, Body: {Body}",
                     routingKey,
                     ea.DeliveryTag,
                     dto.Id,
+                    activity?.TraceId.ToString(),
                     json);
+                activity?.SetStatus(ActivityStatusCode.Error, "patient id empty");
                 Ack(ea);
                 return;
             }
 
+            activity?.SetTag("patient.id", dto.PatientId);
+            activity?.SetTag("patient.event.id", dto.Id);
+            activity?.SetTag("patient.event.type", isCreated ? "patient.created" : "patient.updated");
+
             _logger.LogInformation(
-                "Processing patient integration event. EventId: {EventId}, EventType: {EventType}, PatientId: {PatientId}, OccurredOn: {OccurredOn}, DocumentNumber: {DocumentNumber}",
+                "Processing patient integration event. EventId: {EventId}, EventType: {EventType}, PatientId: {PatientId}, OccurredOn: {OccurredOn}, DocumentNumber: {DocumentNumber}, TraceId: {TraceId}",
                 dto.Id,
                 isCreated ? "patient.created" : "patient.updated",
                 dto.PatientId,
                 dto.OccurredOn,
-                dto.DocumentNumber);
+                dto.DocumentNumber,
+                activity?.TraceId.ToString());
 
             using var scope = _scopeFactory.CreateScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
@@ -237,24 +263,31 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
                 DocumentNumber = dto.DocumentNumber
             };
             await mediator.Send(command);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             Ack(ea);
             _logger.LogInformation(
-                "RabbitMQ message acknowledged after patient sync. EventId: {EventId}, PatientId: {PatientId}, EventType: {EventType}, DeliveryTag: {DeliveryTag}",
+                "RabbitMQ message acknowledged after patient sync. EventId: {EventId}, PatientId: {PatientId}, EventType: {EventType}, DeliveryTag: {DeliveryTag}, TraceId: {TraceId}",
                 dto.Id,
                 dto.PatientId,
                 isCreated ? "patient.created" : "patient.updated",
-                ea.DeliveryTag);
+                ea.DeliveryTag,
+                activity?.TraceId.ToString());
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("exception.type", ex.GetType().FullName);
+            activity?.SetTag("exception.message", ex.Message);
+            activity?.SetTag("exception.stacktrace", ex.StackTrace);
             _logger.LogError(
                 ex,
-                "Error processing RabbitMQ message. Exchange: {Exchange}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, Body: {Body}",
+                "Error processing RabbitMQ message. Exchange: {Exchange}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, TraceId: {TraceId}, Body: {Body}",
                 ea.Exchange,
                 routingKey,
                 ea.DeliveryTag,
                 messageId,
                 correlationId,
+                activity?.TraceId.ToString(),
                 json);
             Nack(ea, requeue: false);
         }

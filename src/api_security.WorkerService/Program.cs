@@ -1,4 +1,5 @@
 using api_security.infrastructure;
+using api_security.infrastructure.Integration;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -32,6 +33,7 @@ if (!string.IsNullOrWhiteSpace(otlpEndpoint) && Uri.TryCreate(otlpEndpoint.Trim(
     builder.Services.AddOpenTelemetry()
         .ConfigureResource(rb => rb.AddService(serviceName))
         .WithTracing(tracing => tracing
+            .AddSource(IntegrationTelemetry.ActivitySourceName)
             .AddOtlpExporter(o => o.Endpoint = otlpUri))
         .WithMetrics(metrics => metrics
             .AddOtlpExporter(o => o.Endpoint = otlpUri));
