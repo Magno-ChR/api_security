@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using api_security.application.Integration.Patients;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,7 +173,10 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         var json = Encoding.UTF8.GetString(body);
         var messageId = ea.BasicProperties?.MessageId;
         var correlationId = ea.BasicProperties?.CorrelationId;
-        using var activity = ActivitySource.StartActivity("rabbitmq consume patient event", ActivityKind.Consumer);
+        var parentContext = ExtractParentContext(ea.BasicProperties);
+        using var activity = parentContext.HasValue
+            ? ActivitySource.StartActivity("rabbitmq consume patient event", ActivityKind.Consumer, parentContext.Value)
+            : ActivitySource.StartActivity("rabbitmq consume patient event", ActivityKind.Consumer);
 
         activity?.SetTag("messaging.system", "rabbitmq");
         activity?.SetTag("messaging.destination.name", _options.ExchangeName);
@@ -183,9 +187,11 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
         activity?.SetTag("messaging.conversation_id", correlationId);
         activity?.SetTag("messaging.rabbitmq.delivery_tag", ea.DeliveryTag);
         activity?.SetTag("messaging.rabbitmq.queue", _options.QueueName);
+        activity?.SetTag("messaging.rabbitmq.traceparent", ReadHeaderValue(ea.BasicProperties, "traceparent"));
+        activity?.SetTag("messaging.rabbitmq.tracestate", ReadHeaderValue(ea.BasicProperties, "tracestate"));
 
         _logger.LogInformation(
-            "RabbitMQ message received. Exchange: {Exchange}, Queue: {Queue}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, TraceId: {TraceId}, BodyLength: {Length}",
+            "RabbitMQ message received. Exchange: {Exchange}, Queue: {Queue}, RoutingKey: {RoutingKey}, DeliveryTag: {DeliveryTag}, MessageId: {MessageId}, CorrelationId: {CorrelationId}, TraceId: {TraceId}, ParentSpanId: {ParentSpanId}, BodyLength: {Length}",
             ea.Exchange,
             _options.QueueName,
             routingKey,
@@ -193,6 +199,7 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
             messageId,
             correlationId,
             activity?.TraceId.ToString(),
+            activity?.ParentSpanId.ToString(),
             json.Length);
 
         try
@@ -307,5 +314,35 @@ internal sealed class PatientEventConsumerHostedService : BackgroundService
     {
         SafeDisposeConnection();
         base.Dispose();
+    }
+
+    private static ActivityContext? ExtractParentContext(IBasicProperties? basicProperties)
+    {
+        var traceparent = ReadHeaderValue(basicProperties, "traceparent");
+        if (string.IsNullOrWhiteSpace(traceparent))
+        {
+            return null;
+        }
+
+        var tracestate = ReadHeaderValue(basicProperties, "tracestate");
+        return ActivityContext.TryParse(traceparent, tracestate, out var parentContext)
+            ? parentContext
+            : null;
+    }
+
+    private static string? ReadHeaderValue(IBasicProperties? basicProperties, string key)
+    {
+        if (basicProperties?.Headers is null || !basicProperties.Headers.TryGetValue(key, out var rawValue) || rawValue is null)
+        {
+            return null;
+        }
+
+        return rawValue switch
+        {
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            string text => text,
+            _ => Convert.ToString(rawValue, CultureInfo.InvariantCulture)
+        };
     }
 }
